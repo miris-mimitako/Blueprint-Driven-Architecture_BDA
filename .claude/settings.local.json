@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"D:\\\\application\\\\Blueprint-Driven-Architecture_BDA\")",
+      "Bash(dir /s \"D:\\\\application\\\\Blueprint-Driven-Architecture_BDA\\\\sample\")",
+      "Bash(dir:*)"
+    ]
+  }
+}
