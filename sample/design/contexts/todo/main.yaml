@@ -1,0 +1,10 @@
+name: TodoContext
+description: "タスク管理の中核機能"
+
+domain:
+  $ref: "./domain.yaml"
+  note: "Aggregates(Todo), Events(TodoCompleted), Domain Services(Cleanup)"
+
+application:
+  $ref: "./application.yaml"
+  note: "UseCases(Create, Complete), Queries(GetDashboardStats)"

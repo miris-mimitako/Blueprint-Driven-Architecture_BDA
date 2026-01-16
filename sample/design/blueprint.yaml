@@ -1,0 +1,52 @@
+blueprint: "3.3.0 (Modular DDD)"
+# =========================================================
+# Blueprint-Driven Architecture (BDA) Specification
+# Philosophy: Reference Transparency & Modularization
+# =========================================================
+
+meta:
+  appName: "NextFastTodo"
+  version: "1.0.0"
+  architecture: "Clean Architecture / DDD"
+
+# [Guidelines] 技術スタックと実装ルール
+guidelines:
+  $ref: "./guidelines/tech_stack.yaml"
+  note: "Backend(FastAPI), Frontend(Next.js), Infrastructure rules."
+
+# [Contexts] 業務領域の定義
+contexts:
+  - $ref: "./contexts/identity/main.yaml"
+    note: "【認証・ID管理】ユーザー登録、ログイン、権限管理を行うコンテキスト"
+
+  - $ref: "./contexts/todo/main.yaml"
+    note: "【タスク管理】TodoのCRUD、ステータス変更、期限管理を行うコア機能"
+
+# [Workflows] 長期トランザクション (Saga)
+workflows:
+  - $ref: "./workflows/onboarding.yaml"
+    note: "ユーザー登録からウェルカムメール送信、クーポン発行までのSagaフロー"
+
+# [Interfaces] 外部との入出力 (API / UI)
+interfaces:
+  backend:
+    controllers:
+      - $ref: "./interfaces/backend/todo_controller.yaml"
+        note: "REST API definition for Todo operations"
+
+  frontend:
+    features:
+      - $ref: "./interfaces/frontend/dashboard.yaml"
+        note: "Todo Dashboard UI, ViewModel specs, and Scenarios"
+
+    routing:
+      $ref: "./interfaces/frontend/routing.yaml"
+      note: "Frontend navigation structure and auth guards"
+
+# [Artifacts] 生成物定義
+artifacts:
+  - type: openapi
+    path: "./docs/openapi.yaml"
+    version: "3.1.0"
+    source: ["contexts.*", "interfaces.backend"]
+    note: "Generate OpenAPI spec merging all domain schemas and controller paths"

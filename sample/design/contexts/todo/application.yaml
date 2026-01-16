@@ -1,0 +1,17 @@
+useCases:
+  - name: CreateTodo
+    input: { title: String, userId: UserId }
+    output: TodoDTO
+    flow: "Factory.create -> Repo.save"
+
+  - name: CompleteTodo
+    input: { todoId: TodoId, userId: UserId }
+    output: TodoDTO
+    flow: "Repo.find -> Todo.complete() -> Repo.save -> EventPublisher.publish"
+
+queries:
+  - name: GetDashboardStats
+    desc: "完了率などの統計情報を高速に取得する"
+    input: { userId: UserId }
+    output: DashboardStatsDTO
+    strategy: "Direct SQL / Read Replica"

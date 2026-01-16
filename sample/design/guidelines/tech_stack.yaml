@@ -1,0 +1,11 @@
+backend:
+  framework: "FastAPI (Python)"
+  db: "PostgreSQL (AsyncSQLAlchemy)"
+  auth: "OAuth2 (JWT)"
+  style: "Type Hints, Pydantic v2"
+
+frontend:
+  framework: "Next.js 14+ (App Router)"
+  language: "TypeScript"
+  state: "Zustand"
+  pattern: "MVVM (Hook as ViewModel)"

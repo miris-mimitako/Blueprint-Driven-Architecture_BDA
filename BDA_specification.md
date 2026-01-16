@@ -1,327 +1,202 @@
----
-Version: 3.0.0 (AI-Native)
----
 # Blueprint-Driven Architecture (BDA) Specification
 
-## Core Philosophy
+## Version: 3.3.0 (Modular DDD)
 
-BDAは、アプリケーション開発における「実装の繰り返し」と「仕様の形骸化」を排除するために設計されたアーキテクチャスタイルです。
-この仕様はフリースタイルベースラインを採用しています。
-最低限の定義はここにありますが、ユーザーが任意に追加、削除することでAIによるコーディングを最高精度に高めることを求めています。
+### Core Philosophy Update
 
-| BDA Term Definition | Android (MVVM) | Web (React / Component) |
-| --- | --- | --- |
-| **Domain** | Data Class | TypeScript Interface / Zod Schema |
-| **Feature** | Screen / ViewModel | Page Component / Custom Hook |
-| **State (Output)** | `StateFlow<UiState>` | Hook return values / Context |
-| **Input (Event)** | ViewModel methods | Event Handlers / Callbacks |
-| **Routing** | Jetpack Navigation | React Router / Next.js Routing |
-| **Scenario** | `@Preview` Provider | Storybook (`.stories.tsx`) |
+BDA 3.3.0では、**「参照の透明性（Reference Transparency）」**を導入します。
+巨大な一枚岩の仕様書はメンテナンス性を損ないます。各コンテキストやレイヤーを物理ファイルとして分離し、`$ref` で結合することを強制します。
+また、AIがリンク先の中身を予測できるよう、**必ず `note` フィールドで概要を記述しなければなりません。**
 
-### Blueprint is the App (青写真こそがアプリである)
+### Modularization Rules (New)
 
-- blueprint.yaml は単なる設定ファイルではなく、アプリケーションの**正体（Identity）**である
-- ソースコード（Kotlin, TSなど）は、青写真から出力される**「成果物（Artifact）」**に過ぎない。
+1. **Separation**: Context, Layer, Feature 単位でファイルを分割する。
+2. **Referencing**: 分割したファイルは `$ref: "./relative/path.yaml"` で読み込む。
+3. **Annotation**: `$ref` を使用する際は、**必ず `note: "..."` を併記**し、リンク先のファイルを開かなくても役割がわかるようにする。
 
-### Schema First, Logic Second (構造が先、ロジックは後)
+---
 
-- 「データ構造(Schema)」と「入出力(I/O)」が決まれば、アーキテクチャは確定する。
-- ロジックの実装は、確定した枠組みの中を埋める作業（Fill-in-the-blanks）に限定される。
+## 1. Root Blueprint (Entry Point)
 
-### Simulation Driven (シミュレーション駆動)
-
-- 実装前に「シナリオ」を定義することで、実行可能な仕様書（Storybook/Preview）とテストケースを同時に生成する。
-
-## Architecture Overview (全体像)
-
-### Top Level / Root Structure
-
-トップレベルレイヤを定義します。
+プロジェクトのルートに配置されるメインファイルです。ここには詳細を書かず、全体構造とファイルへのポインタのみを記述します。
 
 ```yaml
-blueprint: "3.0.0 (AI-Native)" # BDA version
+blueprint: "3.3.0"
 
-meta:
-    # アプリのメタデータ（ID, パッケージ名, バージョン等）
-
-guidelines:
-    # AIへの技術スタックと実装ルールの指示
-
-domain:
-    # アプリケーション全体で共有される「名詞（データ型）」の定義 
-    # 複数のページにわたって利用される変数やクラスなどの定義
-
-api:
-    # Backend/Frontend間のAPI契約（エンドポイント定義）
-
-features:
-    # 各画面・機能ごとの「MVVMスペック, Components, hooks （I/O, State, Scenarios）」の定義
-
-routing:
-    # 画面間の遷移ルールと全体構造（サイトマップ）の定義
-```
-
-#### Detail Specs
-
-##### A. meta Section
-
-アプリケーションの基本情報を定義します。
-
-```yaml
 meta:
   appName: "NextFastTodo"
-  version: "0.1.0"
-```
+  version: "1.0.0"
+  architecture: "Clean Architecture / DDD"
 
-##### B. guidelines Section
-
-AIへの技術スタックと実装ルールを指示するセクションです。Backend/Frontend両方の技術選定を明示的に定義します。
-
-役割: AIが実装を行う際の技術的なガイドライン。
-
-```yaml
 guidelines:
+  # 技術スタック定義も別ファイルへ切り出し
+  $ref: "./guidelines/tech_stack.yaml"
+  note: "Backend(FastAPI), Frontend(Next.js), Infrastructure rules."
+
+# =========================================================
+# 1. BOUNDED CONTEXTS (Domain & Application)
+# =========================================================
+contexts:
+  - $ref: "./contexts/identity/main.yaml"
+    note: "【認証・ID管理】ユーザー登録、ログイン、権限管理を行うコンテキスト"
+
+  - $ref: "./contexts/todo/main.yaml"
+    note: "【タスク管理】TodoのCRUD、ステータス変更、期限管理を行うコア機能"
+
+# =========================================================
+# 2. WORKFLOWS (Sagas)
+# =========================================================
+workflows:
+  - $ref: "./workflows/onboarding_saga.yaml"
+    note: "ユーザー登録からウェルカムメール送信、クーポン発行までの長期トランザクション"
+
+# =========================================================
+# 3. INTERFACES (Adapters)
+# =========================================================
+interfaces:
   backend:
-    framework: "FastAPI (Python)"
-    db: "SQLite (with SQLAlchemy)"
-    auth: "OAuth2 with JWT (python-jose)"
-    validation: "Pydantic v2"
-    style: "PEP8, Type Hints必須"
+    controllers:
+      - $ref: "./interfaces/backend/todo_controller.yaml"
+        note: "REST API definition for Todo operations"
   
   frontend:
-    framework: "Next.js 14+ (App Router)"
-    language: "TypeScript"
-    styling: "Tailwind CSS"
-    state: "React Hooks (Context API or Zustand)"
-    apiClient: "Axios (generates types from backend schemas)"
-    style: "Functional Components, Prettier"
+    features:
+      - $ref: "./interfaces/frontend/dashboard_feature.yaml"
+        note: "Todo Dashboard UI, ViewModel, and Scenarios"
+
+    routing:
+      $ref: "./interfaces/frontend/routing.yaml"
+      note: "Frontend navigation structure and auth guards"
+
+# =========================================================
+# 4. INFRASTRUCTURE & ARTIFACTS
+# =========================================================
+infrastructure:
+  $ref: "./infrastructure/config.yaml"
+  note: "DB settings, ACL definitions, and external adapters"
+
+artifacts:
+  - type: openapi
+    path: "./docs/openapi.yaml"
+    source: ["contexts.*", "interfaces.backend"]
+    note: "Generate OpenAPI 3.1 spec from distributed context files"
+
 ```
 
-##### C. domain Section
+---
 
-アプリ内で流通するデータ型（Value Object / Entity）を定義します。
+## 2. Child File Examples
 
-役割: 言語に依存しない型定義。
+分割されたファイルの記述例です。
 
-生成物: Kotlin data class, TypeScript interface, Python Pydantic Model.
+### A. Context Definition
+
+File: `/contexts/todo/main.yaml`
 
 ```yaml
+# Todo Context Definition
+name: TodoContext
+
 domain:
-  schemas:
-    - name: User
-      properties:
-        - { name: id, type: Integer }
-        - { name: email, type: String }
-        - { name: is_active, type: Boolean }
+  # ドメインモデル定義
+  $ref: "./domain.yaml"
+  note: "Aggregates(Todo), Events(TodoCompleted), Domain Services"
 
-    - name: UserCreate
-      properties:
-        - { name: email, type: String }
-        - { name: password, type: String }
+application:
+  # ユースケース定義
+  $ref: "./application.yaml"
+  note: "UseCases(Create, Complete), Queries(GetStats)"
 
-    - name: Token
-      properties:
-        - { name: access_token, type: String }
-        - { name: token_type, type: String }
-
-    - name: TodoItem
-      properties:
-        - { name: id, type: Integer }
-        - { name: title, type: String }
-        - { name: description, type: String? }  # ?はOptional
-        - { name: completed, type: Boolean }
-        - { name: user_id, type: Integer }
 ```
 
-##### D. api Section
+### B. Domain Layer
 
-Backend実装とFrontendクライアントの契約（API仕様）を定義します。
-
-役割: エンドポイントの入出力仕様を明確化。
-
-構成要素:
-- endpoints: APIのグループ定義
-- base: ベースパス
-- operations: 各HTTPメソッドと入出力の定義
+File: `/contexts/todo/domain.yaml`
 
 ```yaml
-api:
-  endpoints:
-    - name: Auth
-      base: "/auth"
-      operations:
-        - { method: POST, path: "/token", input: UserCreate, output: Token, desc: "Login to get JWT" }
-        - { method: POST, path: "/register", input: UserCreate, output: User, desc: "Create new user" }
-    
-    - name: Todos
-      base: "/todos"
-      operations:
-        - { method: GET, path: "/", output: "List<TodoItem>", desc: "Get my todos" }
-        - { method: POST, path: "/", input: TodoItem, output: TodoItem, desc: "Create todo" }
-        - { method: PUT, path: "/{id}", input: TodoItem, output: TodoItem, desc: "Update todo" }
-        - { method: DELETE, path: "/{id}", output: Boolean, desc: "Delete todo" }
+aggregates:
+  - name: Todo
+    root: true
+    properties:
+      - { name: id, type: TodoId }
+      - { name: title, type: String }
+      - { name: status, type: Enum[PENDING, COMPLETED] }
+    behaviors:
+      - { name: complete, emits: TodoCompleted, desc: "Mark as done" }
+
+events:
+  - name: TodoCompleted
+    properties: { todoId: TodoId, occurredAt: DateTime }
+
+repositories:
+  - name: TodoRepository
+    methods:
+      - { name: save, input: Todo, output: Todo }
+
 ```
 
-##### E. features Section
+### C. Feature (Frontend)
 
-BDAの核となる部分。MVVMの「境界（Boundary）」を定義します。
-
-役割: 機能ごとの仕様（ブラックボックス）定義。
-
-構成要素:
-
-- id: 機能の一意識別子
-- name: 画面/コンポーネント名
-- path: URLパス（Web）
-- State: 画面が持つべき情報（Output）。domain で定義した型を使用可能。
-- Inputs: 画面が受け付ける操作（Input）。引数定義を含む。
-- Scenarios: Given（初期状態）と When（操作）に対する Then（期待値）のセット。
+File: `/interfaces/frontend/dashboard_feature.yaml`
 
 ```yaml
-features:
-  - id: LoginFeature
-    name: LoginPage
-    path: "/login"
-    
-    # [State]
-    # React: const { email, isLoading, error } = useLogin();
-    # Android: val uiState by viewModel.uiState.collectAsState()
-    state:
-      - { name: email, type: String, default: "" }
-      - { name: password, type: String, default: "" }
-      - { name: isLoading, type: Boolean, default: false }
-      - { name: error, type: String?, default: null }
+id: TodoDashboardFeature
+name: DashboardPage
+path: "/dashboard"
 
-    # [Inputs]
-    # React: const { onEmailChange } = useLogin(); <input onChange={onEmailChange} />
-    # Android: onClick = { viewModel.onEmailChange(value) }
-    inputs:
-      - { name: onEmailChange, args: [{name: val, type: String}] }
-      - { name: onPasswordChange, args: [{name: val, type: String}] }
-      - { name: onSubmit, args: [] }
-      - { name: onRegisterClick, args: [] }
+state:
+  - { name: todos, type: "List<TodoDTO>" }
 
-    # [Scenarios] -> Storybook / Preview / Test Cases
-    scenarios:
-      # 表示状態テスト（givenのみ）
-      - name: "Initial View"
-        given:
-          state: { email: "", password: "", isLoading: false, error: null }
+inputs:
+  - { name: onAddTodo, args: [{name: title, type: String}] }
 
-      - name: "Loading State"
-        given:
-          state: { email: "test@example.com", isLoading: true }
+scenarios:
+  - name: "Initial Load"
+    given: { state: { todos: [] } }
 
-      - name: "Login Error"
-        given:
-          state: { error: "Invalid credentials" }
-
-      # 操作テスト（given + when + then）
-      - name: "Submit Empty Form"
-        given:
-          state: { email: "", password: "" }
-        when:
-          - { input: onSubmit }
-        then:
-          state: { error: "Email is required" }
-
-      - name: "Submit Valid Form"
-        given:
-          state: { email: "test@example.com", password: "password123" }
-        when:
-          - { input: onSubmit }
-        then:
-          state: { isLoading: true }
 ```
 
-##### F. routing Section
+---
 
-画面の階層構造と遷移ルールを定義します。
+## 3. Revised Directory Structure
 
-役割: アプリの骨格（Navigation Graph）定義。
-
-構成要素:
-
-- entry: アプリの初期表示パス
-- structure: 画面の階層構造
-- guard: 認証ガードなどのアクセス制御
-
-```yaml
-routing:
-  entry: /login
-  
-  # [Structure] 画面構造とURLパスのマッピング
-  structure:
-    - name: RootLayout
-      children:
-        - { name: Login, feature: LoginFeature }
-        - { name: Dashboard, feature: TodoListFeature, guard: AuthGuard }
-```
-
-##### G. routing Section (Advanced)
-
-より複雑なアプリケーションでは、詳細な遷移定義が可能です。
-
-```yaml
-routing:
-  entry: /splash
-  
-  # [Structure] 画面構造とURLパスのマッピング
-  structure:
-    - name: RootLayout
-      type: Stack
-      children:
-        - name: Splash
-          path: "/splash"
-          ref: SplashFeature
-          
-        - name: AuthFlow
-          path: "/auth"
-          type: Stack
-          children:
-            - { name: Login, path: "login", ref: LoginFeature }
-            - { name: Register, path: "register", ref: RegisterFeature }
-            
-        - name: Dashboard
-          path: "/dashboard"
-          type: Layout  # WebではLayoutコンポーネント、MobileではBottomNavなど
-          children:
-            - { name: Home, path: "", ref: HomeFeature }
-
-  # [Transitions] 遷移ロジック
-  transitions:
-    - from: Splash
-      on: Loaded
-      to: /auth/login
-      type: Replace # Historyを書き換え
-
-    - from: Login
-      on: LoginSuccess
-      to: /dashboard
-      args: { userId: "${event.userId}" }
-```
-
-## BDA structure
+`$ref` のパスと一致するディレクトリ構成です。
 
 ```md
 /design
-  ├── blueprint.yaml        # [Root] エントリーポイント
-  ├── domain/               # [Schemas] データ型定義
-  │    ├── user.yaml
-  │    └── product.yaml
-  ├── features/             # [Features] 機能スペック
-  │    ├── auth/
-  │    │    ├── login.yaml
-  │    │    └── register.yaml
-  │    └── home/
-  │         └── home.yaml
-  ├── routing/              # [Routing] 画面遷移定義
-  │    └── main_nav.yaml
-  └── openapi.yaml          # [OpenAPI] API定義(Optional)
+  ├── blueprint.yaml                # [Root] エントリーポイント
+  │
+  ├── guidelines/
+  │   └── tech_stack.yaml           # 技術スタック定義
+  │
+  ├── contexts/                     # [Bounded Contexts]
+  │   ├── identity/
+  │   │   ├── main.yaml             # Identity Context Root
+  │   │   ├── domain.yaml
+  │   │   └── application.yaml
+  │   │
+  │   └── todo/
+  │       ├── main.yaml             # Todo Context Root
+  │       ├── domain.yaml
+  │       └── application.yaml
+  │
+  ├── workflows/                    # [Sagas]
+  │   └── onboarding_saga.yaml
+  │
+  ├── interfaces/                   # [Adapters]
+  │   ├── backend/
+  │   │   └── todo_controller.yaml
+  │   └── frontend/
+  │       ├── dashboard_feature.yaml
+  │       └── routing.yaml
+  │
+  └── infrastructure/               # [Infra]
+      └── config.yaml
+
 ```
 
-## サンプルプロジェクト
+### この構成のメリット
 
-`/sample` ディレクトリに実際のblueprint.yamlの例があります。
-
-- `todo_app/blueprint.yaml` - Next.js + FastAPI を使用したTodoアプリケーションの例
+1. **AIのトークン節約**: AIは最初に `blueprint.yaml` だけを読み、「Todoのドメインルールを変更したい」という指示があった場合のみ、`note` を手がかりに `/contexts/todo/domain.yaml` を読みに行きます。
+2. **人間への可読性**: ファイルを開かなくても `note` を見れば、「ここに何が書いてあるか」が一目瞭然です。
+3. **Git競合の回避**: 巨大なYAMLファイルを修正するのではなく、小さなファイルを修正するため、チーム開発時のコンフリクトが激減します。

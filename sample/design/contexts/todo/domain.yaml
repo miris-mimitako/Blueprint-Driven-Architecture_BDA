@@ -1,0 +1,20 @@
+aggregates:
+  - name: Todo
+    root: true
+    properties:
+      - { name: id, type: TodoId }
+      - { name: title, type: String }
+      - { name: status, type: "Enum[PENDING, COMPLETED]" }
+      - { name: ownerId, type: UserId }
+    behaviors:
+      - { name: complete, emits: TodoCompleted, desc: "ステータスを完了にする" }
+
+events:
+  - name: TodoCompleted
+    properties: { todoId: TodoId, userId: UserId, occurredAt: DateTime }
+
+repositories:
+  - name: TodoRepository
+    methods:
+      - { name: save, input: Todo, output: Todo }
+      - { name: findByOwner, input: UserId, output: "List<Todo>" }

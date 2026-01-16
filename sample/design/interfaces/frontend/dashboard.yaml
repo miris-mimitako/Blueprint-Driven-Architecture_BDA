@@ -1,0 +1,15 @@
+id: TodoDashboardFeature
+name: DashboardPage
+path: "/dashboard"
+
+state:
+  - { name: todos, type: "List<TodoDTO>", default: [] }
+  - { name: stats, type: DashboardStatsDTO?, default: null }
+
+inputs:
+  - { name: onAddTodo, args: [{name: title, type: String}] }
+  - { name: onCompleteClick, args: [{name: id, type: TodoId}] }
+
+scenarios:
+  - name: "Initial Load"
+    given: { state: { todos: [], stats: null } }
