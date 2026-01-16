@@ -1,0 +1,153 @@
+# Todo Controller - REST API Definition
+# Context: TodoContext
+
+name: TodoController
+basePath: "/api/todos"
+tags: ["Todo"]
+
+guards:
+  - JwtAuthGuard  # 全エンドポイントに認証必須
+
+handlers:
+  # === Commands (Write Operations) ===
+
+  - name: createTodo
+    method: POST
+    path: "/"
+    summary: "新規Todo作成"
+    useCase: CreateTodo
+    request:
+      body:
+        type: CreateTodoRequest
+        schema:
+          title: { type: String, required: true, minLength: 1, maxLength: 200 }
+    response:
+      201:
+        type: TodoDTO
+        description: "作成されたTodo"
+      400:
+        type: ErrorResponse
+        description: "バリデーションエラー"
+      401:
+        type: ErrorResponse
+        description: "認証エラー"
+
+  - name: completeTodo
+    method: PUT
+    path: "/{id}/complete"
+    summary: "Todoを完了にする"
+    useCase: CompleteTodo
+    request:
+      params:
+        id: { type: Integer, required: true }
+    response:
+      200:
+        type: TodoDTO
+        description: "更新されたTodo"
+      404:
+        type: ErrorResponse
+        description: "Todo not found"
+      403:
+        type: ErrorResponse
+        description: "権限エラー（他ユーザーのTodo）"
+
+  - name: reopenTodo
+    method: PUT
+    path: "/{id}/reopen"
+    summary: "完了したTodoを再開する"
+    useCase: ReopenTodo
+    request:
+      params:
+        id: { type: Integer, required: true }
+    response:
+      200:
+        type: TodoDTO
+
+  - name: deleteTodo
+    method: DELETE
+    path: "/{id}"
+    summary: "Todoを削除する"
+    useCase: DeleteTodo
+    request:
+      params:
+        id: { type: Integer, required: true }
+    response:
+      204:
+        description: "削除成功"
+      404:
+        type: ErrorResponse
+
+  # === Queries (Read Operations) ===
+
+  - name: getMyTodos
+    method: GET
+    path: "/"
+    summary: "自分のTodo一覧を取得"
+    query: GetMyTodos
+    request:
+      query:
+        status: { type: "Enum[ALL, PENDING, COMPLETED]", default: "ALL" }
+        limit: { type: Integer, default: 50, max: 100 }
+        offset: { type: Integer, default: 0 }
+    response:
+      200:
+        type: "PaginatedResponse<TodoDTO>"
+
+  - name: getTodoById
+    method: GET
+    path: "/{id}"
+    summary: "Todo詳細を取得"
+    query: GetTodoById
+    request:
+      params:
+        id: { type: Integer, required: true }
+    response:
+      200:
+        type: TodoDTO
+      404:
+        type: ErrorResponse
+
+  - name: getDashboardStats
+    method: GET
+    path: "/stats"
+    summary: "ダッシュボード統計情報を取得"
+    query: GetDashboardStats
+    response:
+      200:
+        type: DashboardStatsDTO
+        schema:
+          totalCount: Integer
+          completedCount: Integer
+          pendingCount: Integer
+          completionRate: Float
+
+# DTO Definitions
+dtos:
+  CreateTodoRequest:
+    type: object
+    properties:
+      title: { type: String }
+
+  TodoDTO:
+    type: object
+    properties:
+      id: { type: Integer }
+      title: { type: String }
+      status: { type: "Enum[PENDING, COMPLETED]" }
+      createdAt: { type: DateTime }
+      completedAt: { type: "DateTime?" }
+
+  DashboardStatsDTO:
+    type: object
+    properties:
+      totalCount: { type: Integer }
+      completedCount: { type: Integer }
+      pendingCount: { type: Integer }
+      completionRate: { type: Float, description: "0.0 - 1.0" }
+
+  ErrorResponse:
+    type: object
+    properties:
+      code: { type: String }
+      message: { type: String }
+      details: { type: "Map<String, String>?" }

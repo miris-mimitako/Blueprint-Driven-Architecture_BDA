@@ -31,8 +31,11 @@ workflows:
 interfaces:
   backend:
     controllers:
+      - $ref: "./interfaces/backend/auth_controller.yaml"
+        note: "認証API（登録、ログイン、パスワード変更）"
+
       - $ref: "./interfaces/backend/todo_controller.yaml"
-        note: "REST API definition for Todo operations"
+        note: "Todo CRUD API（作成、完了、削除、一覧取得）"
 
   frontend:
     features:

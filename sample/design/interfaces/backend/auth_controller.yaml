@@ -1,0 +1,189 @@
+# Auth Controller - REST API Definition
+# Context: IdentityContext
+
+name: AuthController
+basePath: "/api/auth"
+tags: ["Authentication"]
+
+handlers:
+  # === Public Endpoints (No Auth Required) ===
+
+  - name: register
+    method: POST
+    path: "/register"
+    summary: "新規ユーザー登録"
+    useCase: RegisterUser
+    guards: []  # 認証不要
+    request:
+      body:
+        type: RegisterRequest
+        schema:
+          email: { type: String, format: email, required: true }
+          password: { type: String, required: true, minLength: 8 }
+    response:
+      201:
+        type: UserDTO
+        description: "登録されたユーザー情報"
+      400:
+        type: ErrorResponse
+        description: "バリデーションエラー"
+      409:
+        type: ErrorResponse
+        description: "メールアドレス重複"
+
+  - name: login
+    method: POST
+    path: "/login"
+    summary: "ログイン"
+    useCase: Login
+    guards: []  # 認証不要
+    request:
+      body:
+        type: LoginRequest
+        schema:
+          email: { type: String, format: email, required: true }
+          password: { type: String, required: true }
+    response:
+      200:
+        type: AuthTokenDTO
+        description: "認証トークン"
+      401:
+        type: ErrorResponse
+        description: "認証失敗"
+
+  - name: refreshToken
+    method: POST
+    path: "/refresh"
+    summary: "トークンリフレッシュ"
+    useCase: RefreshToken
+    guards: []  # RefreshToken で認証
+    request:
+      body:
+        type: RefreshTokenRequest
+        schema:
+          refreshToken: { type: String, required: true }
+    response:
+      200:
+        type: AuthTokenDTO
+      401:
+        type: ErrorResponse
+        description: "Invalid or expired refresh token"
+
+  # === Protected Endpoints (Auth Required) ===
+
+  - name: getMe
+    method: GET
+    path: "/me"
+    summary: "ログインユーザー情報取得"
+    query: GetUserProfile
+    guards: [JwtAuthGuard]
+    response:
+      200:
+        type: UserProfileDTO
+      401:
+        type: ErrorResponse
+
+  - name: changePassword
+    method: PUT
+    path: "/password"
+    summary: "パスワード変更"
+    useCase: ChangePassword
+    guards: [JwtAuthGuard]
+    request:
+      body:
+        type: ChangePasswordRequest
+        schema:
+          currentPassword: { type: String, required: true }
+          newPassword: { type: String, required: true, minLength: 8 }
+    response:
+      204:
+        description: "パスワード変更成功"
+      400:
+        type: ErrorResponse
+        description: "現在のパスワードが間違っている"
+
+  - name: logout
+    method: POST
+    path: "/logout"
+    summary: "ログアウト"
+    useCase: Logout
+    guards: [JwtAuthGuard]
+    response:
+      204:
+        description: "ログアウト成功"
+
+  - name: deactivateAccount
+    method: DELETE
+    path: "/account"
+    summary: "アカウント削除"
+    useCase: DeactivateUser
+    guards: [JwtAuthGuard]
+    request:
+      body:
+        type: DeactivateRequest
+        schema:
+          password: { type: String, required: true, description: "確認用パスワード" }
+    response:
+      204:
+        description: "アカウント削除成功"
+      400:
+        type: ErrorResponse
+
+# DTO Definitions
+dtos:
+  RegisterRequest:
+    type: object
+    properties:
+      email: { type: String, format: email }
+      password: { type: String }
+
+  LoginRequest:
+    type: object
+    properties:
+      email: { type: String, format: email }
+      password: { type: String }
+
+  AuthTokenDTO:
+    type: object
+    properties:
+      accessToken: { type: String }
+      refreshToken: { type: String }
+      expiresIn: { type: Integer, description: "seconds" }
+      tokenType: { type: String, default: "Bearer" }
+
+  UserDTO:
+    type: object
+    properties:
+      id: { type: Integer }
+      email: { type: String }
+      createdAt: { type: DateTime }
+
+  UserProfileDTO:
+    type: object
+    properties:
+      id: { type: Integer }
+      email: { type: String }
+      isActive: { type: Boolean }
+      createdAt: { type: DateTime }
+
+  ChangePasswordRequest:
+    type: object
+    properties:
+      currentPassword: { type: String }
+      newPassword: { type: String }
+
+  RefreshTokenRequest:
+    type: object
+    properties:
+      refreshToken: { type: String }
+
+  DeactivateRequest:
+    type: object
+    properties:
+      password: { type: String }
+
+  ErrorResponse:
+    type: object
+    properties:
+      code: { type: String }
+      message: { type: String }

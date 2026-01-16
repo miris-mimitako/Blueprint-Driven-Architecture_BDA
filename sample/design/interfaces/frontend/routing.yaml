@@ -1,0 +1,154 @@
+# Frontend Routing Definition
+# Framework: Next.js 14+ (App Router)
+
+name: AppRouting
+description: "フロントエンドのルーティング構造と認証ガード"
+
+# ルート定義
+routes:
+  # === Public Routes (認証不要) ===
+  - path: "/"
+    name: Home
+    component: HomePage
+    guards: []
+    meta:
+      title: "NextFastTodo"
+
+  - path: "/login"
+    name: Login
+    component: LoginPage
+    guards: [GuestGuard]  # ログイン済みならリダイレクト
+    meta:
+      title: "ログイン"
+    redirectIfAuthenticated: "/dashboard"
+
+  - path: "/register"
+    name: Register
+    component: RegisterPage
+    guards: [GuestGuard]
+    meta:
+      title: "新規登録"
+    redirectIfAuthenticated: "/dashboard"
+
+  # === Protected Routes (認証必須) ===
+  - path: "/dashboard"
+    name: Dashboard
+    component: DashboardPage
+    feature: TodoDashboardFeature
+    guards: [AuthGuard]
+    meta:
+      title: "ダッシュボード"
+      requiresAuth: true
+
+  - path: "/settings"
+    name: Settings
+    component: SettingsPage
+    guards: [AuthGuard]
+    meta:
+      title: "設定"
+      requiresAuth: true
+    children:
+      - path: "/settings/profile"
+        name: ProfileSettings
+        component: ProfileSettingsPage
+        meta:
+          title: "プロフィール設定"
+
+      - path: "/settings/password"
+        name: PasswordSettings
+        component: PasswordSettingsPage
+        meta:
+          title: "パスワード変更"
+
+      - path: "/settings/account"
+        name: AccountSettings
+        component: AccountSettingsPage
+        meta:
+          title: "アカウント設定"
+
+  # === Error Pages ===
+  - path: "/404"
+    name: NotFound
+    component: NotFoundPage
+    guards: []
+    meta:
+      title: "ページが見つかりません"
+
+  - path: "/500"
+    name: ServerError
+    component: ServerErrorPage
+    guards: []
+    meta:
+      title: "サーバーエラー"
+
+# ガード定義
+guards:
+  - name: AuthGuard
+    description: "認証されていない場合、/login にリダイレクト"
+    check: "isAuthenticated"
+    redirectTo: "/login"
+    preserveReturnUrl: true  # ログイン後に元のページに戻る
+
+  - name: GuestGuard
+    description: "認証済みの場合、指定先にリダイレクト"
+    check: "!isAuthenticated"
+    redirectTo: "/dashboard"
+
+# レイアウト定義
+layouts:
+  - name: MainLayout
+    description: "ヘッダー + サイドバー + メインコンテンツ"
+    appliesTo:
+      - "/dashboard"
+      - "/settings/**"
+    components:
+      - Header
+      - Sidebar
+      - Footer
+
+  - name: AuthLayout
+    description: "認証ページ用シンプルレイアウト"
+    appliesTo:
+      - "/login"
+      - "/register"
+    components:
+      - AuthHeader
+
+  - name: MinimalLayout
+    description: "エラーページ用ミニマルレイアウト"
+    appliesTo:
+      - "/404"
+      - "/500"
+
+# ナビゲーション定義
+navigation:
+  main:
+    - label: "ダッシュボード"
+      path: "/dashboard"
+      icon: "home"
+      requiresAuth: true
+
+    - label: "設定"
+      path: "/settings"
+      icon: "settings"
+      requiresAuth: true
+      children:
+        - label: "プロフィール"
+          path: "/settings/profile"
+        - label: "パスワード"
+          path: "/settings/password"
+        - label: "アカウント"
+          path: "/settings/account"
+
+  auth:
+    - label: "ログイン"
+      path: "/login"
+      showWhen: "!isAuthenticated"
+
+    - label: "新規登録"
+      path: "/register"
+      showWhen: "!isAuthenticated"
+
+    - label: "ログアウト"
+      action: "logout"
+      showWhen: "isAuthenticated"

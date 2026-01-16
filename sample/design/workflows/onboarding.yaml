@@ -1,0 +1,48 @@
+# Onboarding Workflow (Saga)
+# ユーザー登録から初期設定完了までの長期トランザクション
+
+name: OnboardingSaga
+description: "ユーザー登録からウェルカムメール送信、初期Todo作成までのSagaフロー"
+
+trigger:
+  event: "IdentityContext.UserRegistered"
+
+steps:
+  - name: SendWelcomeEmail
+    action: "NotificationService.sendEmail"
+    input:
+      to: "{{ event.email }}"
+      template: "welcome"
+      data:
+        userName: "{{ event.email }}"
+    onFailure:
+      retry: 3
+      fallback: "LogFailure"
+
+  - name: CreateDefaultTodoList
+    action: "TodoContext.CreateTodo"
+    input:
+      userId: "{{ event.userId }}"
+      title: "Welcome! Start by completing this todo"
+    onFailure:
+      compensate: "SkipDefaultTodo"
+
+  - name: SendOnboardingComplete
+    action: "NotificationService.sendInAppNotification"
+    input:
+      userId: "{{ event.userId }}"
+      message: "Setup complete! You're ready to go."
+
+compensations:
+  - name: LogFailure
+    action: "LoggingService.logError"
+    input:
+      level: "WARN"
+      message: "Welcome email failed for user {{ event.userId }}"
+
+  - name: SkipDefaultTodo
+    action: "LoggingService.logInfo"
+    input:
+      message: "Default todo creation skipped for user {{ event.userId }}"
+
+timeout: "5m"
