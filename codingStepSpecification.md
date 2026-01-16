@@ -1,7 +1,14 @@
 # コーディング実装規約 (BDA v3.3.0)
 
-**Version:** 3.0.0
+**Version:** 3.1.0
 **Architecture:** Blueprint-Driven Architecture (Modular DDD)
+**Last Updated:** 2026-01-16
+
+### Change Log
+| Version | Date | Changes |
+|---------|------|---------|
+| 3.1.0 | 2026-01-16 | 既存機能連携チェック、UI詳細仕様、非機能要件、Inventory再生成ルール、Deprecation Warning対応、設計レビューチェックリストを追加 |
+| 3.0.0 | - | 初版 |
 
 ## 1. 概要 (Overview)
 
@@ -111,11 +118,32 @@ IdentityContext                    TodoContext
   - 対象 Context の特定（新規 or 既存）
 * **DoD:** `meta` 情報や既存の `guidelines` と矛盾せず、作るべき機能が言語化されていること。
 
+#### 既存機能との連携チェック（重要）
+
+新機能を追加する際は、**既存のBounded Contextとの連携**を必ず検討すること。
+
+```yaml
+# blueprint.yaml に追加すべき例
+cross_context_requirements:
+  - from: shopping
+    to: manufacturer
+    integration: "アイテム登録時にメーカーを自動登録"
+    direction: "Shopping → Manufacturer"
+```
+
+| チェック項目 | 確認内容 |
+|-------------|---------|
+| データの関連性 | 新Contextのデータは既存Contextと関連するか？ |
+| 機能の連携 | 新機能は既存機能と連動すべきか？ |
+| マスターデータ | 新しいマスターデータは他機能から参照されるか？ |
+| 自動登録 | ユーザー入力を他のマスターに自動反映すべきか？ |
+
 #### Completion Gate 1
 - [ ] 機能の目的が1文で説明できる
 - [ ] 対象の Bounded Context が特定されている
 - [ ] ユーザーアクションが全て列挙されている
 - [ ] システムレスポンス（正常系・異常系）が定義されている
+- [ ] **既存Contextとの連携要件が明確になっている**
 
 ### [Step 2] ドメインモデル確定 (Blueprint Definition)
 
@@ -145,6 +173,34 @@ design/
     └── frontend/dashboard.yaml
 ```
 
+#### UI/UX 詳細仕様の記載（重要）
+
+`interfaces/` の設計ファイルには、UIコンポーネントの**振る舞いの詳細**を記載すること。
+曖昧な仕様は実装時の手戻りの原因となる。
+
+```yaml
+# interfaces/mobile/add_item_dialog.yaml の例
+components:
+  manufacturer_input:
+    type: AutoCompleteTextField
+    behavior:
+      filter: "部分一致（大文字小文字無視）"
+      max_suggestions: 10
+      show_on_focus: true
+      empty_state: "候補なし"
+    validation:
+      required: false
+      max_length: 100
+```
+
+| 記載すべき項目 | 例 |
+|---------------|-----|
+| 入力フィールドの種類 | TextField, AutoCompleteTextField, Dropdown |
+| フィルタリング方法 | 前方一致、部分一致、大文字小文字の扱い |
+| 表示件数上限 | max_suggestions: 10 |
+| 空状態の表示 | "候補がありません" |
+| バリデーションルール | required, max_length, pattern |
+
 #### Completion Gate 2
 - [ ] `domain.yaml` に Aggregate（properties, behaviors）が定義されている
 - [ ] `domain.yaml` に Domain Event（properties）が定義されている
@@ -152,7 +208,35 @@ design/
 - [ ] `application.yaml` に UseCase（input, output, flow）が定義されている
 - [ ] `application.yaml` に Query（input, output, strategy）が定義されている（読み取り専用操作がある場合）
 - [ ] `interfaces/` に Controller または ViewModel が定義されている
+- [ ] **`interfaces/` にUI振る舞いの詳細が記載されている**
+- [ ] **非機能要件が検討・記載されている**
 - [ ] 全ての `$ref` に `note` が付与されている
+
+#### 非機能要件の考慮（重要）
+
+設計ファイルには**非機能要件**も明記すること。実装後に発覚すると大きな手戻りとなる。
+
+```yaml
+# contexts/{context}/main.yaml または guidelines/ に記載
+non_functional_requirements:
+  performance:
+    - "メーカー候補は最大100件まで表示"
+    - "サジェスト表示は100ms以内"
+  offline:
+    - "オフライン時はローカルキャッシュから候補を表示"
+  scalability:
+    - "メーカーマスターは10,000件まで対応"
+  security:
+    - "入力値は必ずサニタイズ"
+```
+
+| カテゴリ | 検討項目 |
+|---------|---------|
+| Performance | 大量データ時のレスポンス、ページネーション |
+| Offline | オフライン時の挙動、キャッシュ戦略 |
+| Scalability | データ量の上限、将来の拡張性 |
+| Security | 入力値検証、認証・認可 |
+| Usability | エラーメッセージ、ローディング表示 |
 
 ### [Step 2.5] Implementation Inventory 作成 (実装項目の棚卸し)
 
@@ -238,6 +322,25 @@ design/
 ```bash
 # 設計ファイルのハッシュ取得コマンド例
 git log -1 --format=%H -- design/contexts/todo/
+```
+
+#### 機能追加時の Inventory 再生成ルール（重要）
+
+**既存Contextに機能を追加した場合**、必ず `/bda-inventory` を再実行し、差分を明確化すること。
+
+| シナリオ | 対応 |
+|---------|------|
+| 新規Contextの追加 | `/bda-inventory {new_context}` で新規作成 |
+| 既存Contextへの機能追加 | `/bda-inventory {context}` で差分を確認・追記 |
+| Context間連携の追加 | 両方のContextの Inventory を更新 |
+| 設計ファイルの修正 | 該当 Inventory を同期 |
+
+```bash
+# 機能追加後の推奨フロー
+1. 設計ファイル（domain.yaml, application.yaml）を更新
+2. /bda-inventory {context} を実行
+3. 差分を確認し、実装計画を立てる
+4. 実装を進める
 ```
 
 #### Completion Gate 2.5
@@ -597,8 +700,29 @@ Complexity Limit: メソッドの循環的複雑度（Cyclomatic Complexity）�
 * [ ] **BDA Compliance:** 設計ファイル（`design/contexts/*/domain.yaml` 等）と実装の整合性は取れているか？
 * [ ] **Test Coverage:** Step 4, 5, 7, 8 のテストは全て Green か？
 * [ ] **Linting:** `ruff check` / `mypy` / `eslint` はエラーなしか？
+* [ ] **Deprecation Warning:** 非推奨APIの警告が出ていないか？（下記参照）
 * [ ] **Strict DI:** Repository は Interface（ABC）を通じて注入されているか？
 * [ ] **Documentation:** 主要なロジックに Docstrings はあるか？
+
+#### Deprecation Warning の対応（重要）
+
+ビルド時に **Deprecation Warning** が出力された場合、**放置せず即座に対応**すること。
+
+| 状況 | 対応 |
+|------|------|
+| 警告が出た | 新しいAPIに置き換える |
+| 新APIが不明 | 公式ドキュメントで代替を確認 |
+| 代替がない | コメントで理由を明記し、Issue登録 |
+
+```kotlin
+// Bad: 警告を放置
+.menuAnchor()  // 'menuAnchor()' is deprecated
+
+// Good: 新APIに更新
+.menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
+```
+
+**理由:** Deprecation Warning を放置すると、将来のバージョンアップで突然動作しなくなるリスクがある。
 
 ### 5.2 DDD Compliance チェック
 * [ ] **Domain Layer:** Aggregate が技術詳細（DB, Framework）に依存していないか？
@@ -619,6 +743,30 @@ Complexity Limit: メソッドの循環的複雑度（Cyclomatic Complexity）�
 * [ ] **UseCases:** `application.yaml` に定義された全 UseCase が実装されているか？
 * [ ] **Queries:** `application.yaml` に定義された全 Query が実装されているか？
 * [ ] **$ref 整合性:** 全ての `$ref` 参照先ファイルが存在するか？
+
+### 5.5 設計レビューチェックリスト（Step 2 完了時）
+
+設計ファイル作成後、実装に入る前に以下を確認すること。
+
+#### Context間依存
+* [ ] 新Contextは既存Contextと連携が必要か？
+* [ ] 連携が必要な場合、`blueprint.yaml` に依存関係が記載されているか？
+* [ ] 依存方向は適切か？（循環依存がないか）
+
+#### UI詳細仕様
+* [ ] `interfaces/` にUI振る舞いの詳細が記載されているか？
+* [ ] 入力フィールドのタイプ（TextField, AutoComplete, Dropdown等）が明記されているか？
+* [ ] バリデーションルールが明記されているか？
+* [ ] エラー時・空状態の表示が定義されているか？
+
+#### 非機能要件
+* [ ] パフォーマンス要件（大量データ時の挙動）が検討されているか？
+* [ ] オフライン時の挙動が検討されているか？
+* [ ] セキュリティ（入力値検証、認証）が検討されているか？
+
+#### Inventory同期
+* [ ] 設計変更後、`/bda-inventory` が再実行されているか？
+* [ ] Inventoryに新規項目が追加されているか？
 
 ---
 
