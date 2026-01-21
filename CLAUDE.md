@@ -113,9 +113,45 @@ contexts:
 
 ## Coding Standards
 
+実装時は必ず `design/guidelines/coding-standards.yaml` を参照すること。
+
+### 設計原則
+
 - **Domain First**: ビジネスドメインを先に確定、技術詳細は後
 - **Interface Segregation**: Repository は Domain Layer に Interface、Infrastructure に実装
 - **Event-Driven**: Context間連携は Domain Event を介して疎結合に
+
+### Value Object 3原則
+
+Value Objectは以下の3原則を必ず満たすこと：
+
+| 原則 | 実装手段 |
+|------|----------|
+| **不変性** (Immutability) | `readonly` + Branded Type |
+| **完全性** (Validity) | Zod検証 + Parse, don't validate |
+| **カプセル化** (Encapsulation) | `unique symbol` + Factory関数 |
+
+```typescript
+// 実装パターン例
+declare const EmployeeIdBrand: unique symbol;
+type EmployeeId = string & { readonly [EmployeeIdBrand]: never };
+
+const employeeIdSchema = z.string()
+  .regex(/^EMP-\d{8}$/, 'EMP- + 8桁の数字')
+  .transform((val): EmployeeId => val as EmployeeId);
+
+export const EmployeeId = {
+  parse: (value: unknown): EmployeeId => employeeIdSchema.parse(value),
+  safeParse: (value: unknown) => employeeIdSchema.safeParse(value),
+} as const;
+```
+
+### Entity / Aggregate Root
+
+- **Entity**: IDによる同一性、IDは不変
+- **Aggregate Root**: トランザクション境界、不変条件の保護、他Aggregateへの参照はIDのみ
+
+詳細は `design/guidelines/coding-standards.yaml` を参照。
 
 ## Key Files to Read
 

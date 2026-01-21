@@ -1,0 +1,294 @@
+# ============================================================
+# Coding Standards - DDD Building Blocks 実装規約
+# ============================================================
+# このファイルはValue Object, Entity, Aggregate Rootの
+# 実装パターンを定義します。AIはこのファイルを参照し、
+# 一貫した実装を生成します。
+# ============================================================
+
+version: "1.0"
+description: "DDD Building Blocks 実装規約 - 全Context共通"
+
+# ============================================================
+# Value Object 実装規約
+# ============================================================
+value_objects:
+  description: |
+    Value Objectは「値そのもの」を表現するオブジェクト。
+    同一性はIDではなく、全属性の一致で判断する。
+
+  principles:
+    - name: "不変性 (Immutability)"
+      rule: "生成後の状態変更を禁止"
+      rationale: "副作用を排除し、予測可能な振る舞いを保証"
+      implementation:
+        - "readonly修飾子を全プロパティに付与"
+        - "setter メソッドを持たない"
+        - "変更が必要な場合は新しいインスタンスを返す"
+
+    - name: "完全性 (Validity)"
+      rule: "不正な値を持つインスタンスは存在させない"
+      rationale: "ドメインルールを常に満たすことを型で保証"
+      implementation:
+        - "Zodスキーマで入力を検証"
+        - "Factory関数経由でのみ生成可能"
+        - "Parse, don't validate パターンを適用"
+        - "検証失敗時は例外またはResult型で通知"
+
+    - name: "カプセル化 (Encapsulation)"
+      rule: "生の値への直接アクセスを防ぐ"
+      rationale: "プリミティブ型との誤用を型システムで防止"
+      implementation:
+        - "Branded Type (unique symbol) で型を区別"
+        - "プリミティブ型との暗黙変換を禁止"
+        - "明示的な変換メソッドのみを提供"
+
+  # TypeScript実装テンプレート
+  typescript_template: |
+    import { z } from 'zod';
+
+    // ================================
+    // Branded Type 定義
+    // ================================
+    declare const {Name}Brand: unique symbol;
+    type {Name} = {BaseType} & { readonly [{Name}Brand]: never };
+
+    // ================================
+    // Zod Schema（検証ルール）
+    // ================================
+    const {camelName}Schema = z
+      .{baseValidator}()
+      {validationChain}
+      .transform((val): {Name} => val as {Name});
+
+    // ================================
+    // Factory（Parse, don't validate）
+    // ================================
+    export const {Name} = {
+      /**
+       * 検証して {Name} を生成（失敗時は例外）
+       * @throws ZodError 検証失敗時
+       */
+      parse: (value: unknown): {Name} => {
+        return {camelName}Schema.parse(value);
+      },
+
+      /**
+       * 検証して Result型で返す（例外を投げない）
+       */
+      safeParse: (value: unknown):
+        | { success: true; data: {Name} }
+        | { success: false; error: z.ZodError } => {
+        return {camelName}Schema.safeParse(value);
+      },
+
+      /**
+       * 型ガード
+       */
+      is: (value: unknown): value is {Name} => {
+        return {camelName}Schema.safeParse(value).success;
+      },
+    } as const;
+
+    // 型エクスポート
+    export type { {Name} };
+
+  # Python実装テンプレート (Pydantic v2)
+  python_template: |
+    from typing import Self
+    from pydantic import GetCoreSchemaHandler
+    from pydantic_core import CoreSchema, core_schema
+
+    class {Name}(str):
+        """
+        {description}
+
+        不変性: strを継承し、変更不可
+        完全性: __new__で検証、不正値は生成不可
+        カプセル化: 専用型として区別
+        """
+
+        @classmethod
+        def _validate(cls, value: str) -> str:
+            {validation_logic}
+            return value
+
+        def __new__(cls, value: str) -> Self:
+            validated = cls._validate(value)
+            return super().__new__(cls, validated)
+
+        @classmethod
+        def __get_pydantic_core_schema__(
+            cls, source_type: type, handler: GetCoreSchemaHandler
+        ) -> CoreSchema:
+            return core_schema.no_info_after_validator_function(
+                cls._validate,
+                core_schema.str_schema(),
+                serialization=core_schema.to_string_ser_schema(),
+            )
+
+  # 実装例
+  examples:
+    - name: "EmployeeId"
+      description: "社員ID（EMP- + 8桁数字）"
+      base_type: "string"
+      validation: "^EMP-\\d{8}$"
+      error_message: "社員IDは 'EMP-' + 8桁の数字である必要があります"
+
+    - name: "Email"
+      description: "メールアドレス"
+      base_type: "string"
+      validation: "email format (Zod built-in)"
+      normalization: "lowercase"
+
+    - name: "Money"
+      description: "金額（通貨付き）"
+      base_type: "object"
+      properties:
+        - "amount: number (non-negative)"
+        - "currency: 'JPY' | 'USD' | 'EUR'"
+      methods:
+        - "add(other: Money): Money"
+        - "multiply(factor: number): Money"
+
+# ============================================================
+# Entity 実装規約
+# ============================================================
+entities:
+  description: |
+    Entityは「識別子（ID）」によって同一性が決まるオブジェクト。
+    ライフサイクルを通じて同一性を維持する。
+
+  principles:
+    - name: "識別性 (Identity)"
+      rule: "IDによって同一性を判定"
+      implementation:
+        - "IDはValue Objectとして実装"
+        - "equals()メソッドはIDのみで比較"
+
+    - name: "不変ID (Immutable Identity)"
+      rule: "IDは生成後変更不可"
+      implementation:
+        - "IDプロパティはreadonly"
+        - "IDのsetterを提供しない"
+
+    - name: "整合性 (Consistency)"
+      rule: "常にドメインルールを満たす状態を維持"
+      implementation:
+        - "状態変更は専用メソッド経由"
+        - "不変条件をメソッド内でチェック"
+
+  typescript_template: |
+    import { z } from 'zod';
+
+    // ID（Value Object）
+    declare const {Name}IdBrand: unique symbol;
+    type {Name}Id = string & { readonly [{Name}IdBrand]: never };
+
+    // Entity
+    interface {Name}Props {
+      id: {Name}Id;
+      // other properties...
+    }
+
+    export class {Name} {
+      private constructor(private readonly props: {Name}Props) {}
+
+      // ファクトリメソッド
+      static create(props: Omit<{Name}Props, 'id'>): {Name} {
+        const id = {Name}Id.parse(generateId());
+        return new {Name}({ ...props, id });
+      }
+
+      static reconstitute(props: {Name}Props): {Name} {
+        return new {Name}(props);
+      }
+
+      // ID getter
+      get id(): {Name}Id {
+        return this.props.id;
+      }
+
+      // 同一性判定
+      equals(other: {Name}): boolean {
+        return this.id === other.id;
+      }
+    }
+
+# ============================================================
+# Aggregate Root 実装規約
+# ============================================================
+aggregate_roots:
+  description: |
+    Aggregate Rootは関連するEntity/VOをまとめる境界。
+    外部からのアクセスはRoot経由のみ許可。
+
+  principles:
+    - name: "トランザクション境界"
+      rule: "Aggregate単位でトランザクションを管理"
+
+    - name: "不変条件の保護"
+      rule: "Aggregate全体の整合性をRootが保証"
+
+    - name: "参照ルール"
+      rule: "他Aggregateへの参照はIDのみ"
+      implementation:
+        - "他AggregateのEntityを直接保持しない"
+        - "IDを保持し、必要時にRepository経由で取得"
+
+  typescript_template: |
+    export class {Name}Aggregate {
+      private readonly domainEvents: DomainEvent[] = [];
+
+      private constructor(
+        private readonly props: {Name}Props,
+        private readonly children: ChildEntity[]
+      ) {}
+
+      // ドメインイベントの発行
+      protected addDomainEvent(event: DomainEvent): void {
+        this.domainEvents.push(event);
+      }
+
+      pullDomainEvents(): DomainEvent[] {
+        const events = [...this.domainEvents];
+        this.domainEvents.length = 0;
+        return events;
+      }
+
+      // ビジネスロジック（不変条件をチェック）
+      doSomething(): void {
+        // 事前条件チェック
+        this.ensureInvariant();
+
+        // 状態変更
+        // ...
+
+        // イベント発行
+        this.addDomainEvent(new SomethingHappened(this.id));
+      }
+
+      private ensureInvariant(): void {
+        // Aggregate全体の不変条件をチェック
+      }
+    }
+
+# ============================================================
+# 共通ユーティリティ
+# ============================================================
+utilities:
+  result_type:
+    description: "例外を使わないエラーハンドリング"
+    typescript: |
+      type Result<T, E = Error> =
+        | { success: true; data: T }
+        | { success: false; error: E };
+
+  domain_event:
+    description: "ドメインイベントの基底型"
+    typescript: |
+      interface DomainEvent {
+        readonly eventId: string;
+        readonly occurredOn: Date;
+        readonly aggregateId: string;
+      }
